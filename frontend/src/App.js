@@ -124,6 +124,11 @@ function Dashboard({ utilisateur, onLogout }) {
   const [stats, setStats] = useState([]);
   const [messages, setMessages] = useState([]);
   const [nouveauMessage, setNouveauMessage] = useState("");
+  
+  // Variables pour l'import Excel
+  const [importLoading, setImportLoading] = useState(false);
+  const [importErreur, setImportErreur] = useState(null);
+  const [importResultats, setImportResultats] = useState([]);
 
   useEffect(() => {
     if (onglet === 'stats') {
@@ -170,6 +175,36 @@ function Dashboard({ utilisateur, onLogout }) {
       }
     } catch (err) {
       alert("Erreur d'envoi");
+    }
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setImportLoading(true);
+    setImportErreur(null);
+    setImportResultats([]);
+    
+    const formData = new FormData();
+    formData.append("file", file);
+    
+    try {
+      const response = await fetch('http://127.0.0.1:8000/import-excel', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await response.json();
+      
+      if (data.erreur) {
+        setImportErreur(data.erreur);
+      } else {
+        setImportResultats(data.resultats);
+      }
+    } catch (err) {
+      setImportErreur("Erreur lors de l'envoi du fichier.");
+    } finally {
+      setImportLoading(false);
     }
   };
 
@@ -247,11 +282,35 @@ function Dashboard({ utilisateur, onLogout }) {
 
         {onglet === 'import' && (
           <div className="p-8 flex flex-col items-center justify-center h-full text-center min-h-[400px]">
-            <div className="border-2 border-dashed border-slate-600 rounded-xl p-10 hover:border-blue-500 transition cursor-pointer bg-slate-800/50">
+            <input 
+              type="file" 
+              accept=".csv, .xlsx, .xls"
+              onChange={handleFileUpload}
+              className="hidden" 
+              id="file-upload" 
+            />
+            <label 
+              htmlFor="file-upload" 
+              className="border-2 border-dashed border-slate-600 rounded-xl p-10 hover:border-blue-500 transition cursor-pointer bg-slate-800/50 block w-full max-w-md"
+            >
               <p className="text-4xl mb-4">📁</p>
-              <p className="text-white font-bold mb-2">Glissez votre fichier CSV ici</p>
-              <p className="text-slate-400 text-sm">ou cliquez pour parcourir</p>
-            </div>
+              <p className="text-white font-bold mb-2">Cliquez pour choisir un fichier CSV/Excel</p>
+              <p className="text-slate-400 text-sm">Colonnes requises : csr, debit_mbps, latence_ms, disponibilite_pct</p>
+            </label>
+            
+            {importLoading && <p className="text-blue-400 mt-4">Analyse en cours...</p>}
+            {importErreur && <p className="text-red-400 mt-4">{importErreur}</p>}
+            
+            {importResultats.length > 0 && (
+              <div className="mt-6 w-full max-w-2xl max-h-64 overflow-y-auto bg-slate-900 rounded-lg p-4 border border-slate-700 text-left">
+                <p className="text-green-400 font-bold mb-2">{importResultats.length} lignes analysées :</p>
+                {importResultats.map((r, i) => (
+                  <div key={i} className="text-sm text-slate-300 border-b border-slate-800 py-1">
+                    Ligne {r.ligne} : <span className="text-white font-semibold">{r.score_qos}</span> ({r.interpretation})
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
