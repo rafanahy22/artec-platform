@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from sqlalchemy import func
 
 # Imports locaux
 from database.db import engine, SessionLocal, Base
@@ -109,3 +110,22 @@ def ajouter_avis(avis: schemas.AvisCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(nouvel_avis)
     return {"message": "Merci pour votre avis !", "avis_id": nouvel_avis.id}
+
+# 5. Route pour récupérer les statistiques des avis par opérateur
+@app.get("/statistiques")
+def get_statistiques(db: Session = Depends(get_db)):
+    stats = db.query(
+        models.Avis.operateur_nom, 
+        func.avg(models.Avis.note).label('moyenne'),
+        func.count(models.Avis.id).label('total')
+    ).group_by(models.Avis.operateur_nom).all()
+    
+    resultat = []
+    for operateur, moyenne, total in stats:
+        resultat.append({
+            "operateur": operateur,
+            "moyenne": round(float(moyenne), 2),
+            "total_avis": total
+        })
+    
+    return resultat
