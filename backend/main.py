@@ -1,21 +1,15 @@
 from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from sqlalchemy import func
-from fastapi import UploadFile, File
-import pandas as pd
-import io
 
-# Imports locaux
-from database.db import engine, SessionLocal, Base
-import models.models as models
-import schemas
+import models
 import auth
+import database
 from ml_model import predire_qos
 
-# --- Création des tables dans la base de données ---
-models.Base.metadata.create_all(bind=engine)
+# Création des tables dans la base de données au démarrage
+models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(
     title="ARTEC Platform API",
@@ -23,32 +17,25 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# 🛡️ CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# --- Dépendance pour la base de données ---
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-# --- Modèles de données pour le ML ---
+# ============================================================
+# MODÈLES PYDANTIC (pour valider les données entrantes)
+# ============================================================
 class IndicateursQoS(BaseModel):
     csr: float
     debit_mbps: float
     latence_ms: float
     disponibilite_pct: float
 
-# --- ROUTES ---
+class UtilisateurCreation(BaseModel):
+    nom: str
+    email: str
+    mot_de_passe: str
+    role: str
+    operateur_nom: str | None = None
 
+# ============================================================
+# ROUTES DE BASE
+# ============================================================
 @app.get("/")
 def read_root():
     return {
@@ -57,38 +44,6 @@ def read_root():
         "projet": "Plateforme intelligente de régulation"
     }
 
-# 1. Route d'inscription
-@app.post("/register", response_model=schemas.UtilisateurResponse)
-def register(user: schemas.UtilisateurCreate, db: Session = Depends(get_db)):
-    nouvel_utilisateur = auth.creer_utilisateur(db, user)
-    if nouvel_utilisateur is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Un utilisateur avec cet email existe déjà."
-        )
-    return nouvel_utilisateur
-
-# 2. Route de connexion
-@app.post("/login")
-def login(user: schemas.UtilisateurLogin, db: Session = Depends(get_db)):
-    utilisateur = auth.authentifier_utilisateur(db, user.email, user.mot_de_passe)
-    if not utilisateur:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email ou mot de passe incorrect."
-        )
-    return {
-        "message": "Connexion réussie",
-        "utilisateur": {
-            "id": utilisateur.id,
-            "nom": utilisateur.nom,
-            "email": utilisateur.email,
-            "role": utilisateur.role,
-            "operateur_nom": utilisateur.operateur_nom
-        }
-    }
-
-# 3. Route de prédiction IA
 @app.post("/predict")
 def predict_qos(indicateurs: IndicateursQoS):
     resultat = predire_qos(
@@ -99,109 +54,51 @@ def predict_qos(indicateurs: IndicateursQoS):
     )
     return resultat
 
-# 4. Route pour enregistrer un avis visiteur
-@app.post("/avis")
-def ajouter_avis(avis: schemas.AvisCreate, db: Session = Depends(get_db)):
-    nouvel_avis = models.Avis(
-        operateur_nom=avis.operateur_nom,
-        note=avis.note,
-        commentaire=avis.commentaire,
-        service=avis.service,
-        region=avis.region
+# ============================================================
+# AUTHENTIFICATION
+# ============================================================
+@app.post("/register")
+def register(user: UtilisateurCreation, db: Session = Depends(database.get_db)):
+    # Vérifier si l'email existe déjà
+    existe = db.query(models.Utilisateur).filter(models.Utilisateur.email == user.email).first()
+    if existe:
+        raise HTTPException(status_code=400, detail="Cet email est déjà utilisé")
+
+    nouvel_utilisateur = models.Utilisateur(
+        nom=user.nom,
+        email=user.email,
+        mot_de_passe=auth.hasher_mot_de_passe(user.mot_de_passe),
+        role=user.role,
+        operateur_nom=user.operateur_nom
     )
-    db.add(nouvel_avis)
+    db.add(nouvel_utilisateur)
     db.commit()
-    db.refresh(nouvel_avis)
-    return {"message": "Merci pour votre avis !", "avis_id": nouvel_avis.id}
+    db.refresh(nouvel_utilisateur)
+    return {"message": "Utilisateur créé avec succès", "id": nouvel_utilisateur.id}
 
-# 5. Route pour récupérer les statistiques des avis par opérateur
-@app.get("/statistiques")
-def get_statistiques(db: Session = Depends(get_db)):
-    stats = db.query(
-        models.Avis.operateur_nom, 
-        func.avg(models.Avis.note).label('moyenne'),
-        func.count(models.Avis.id).label('total')
-    ).group_by(models.Avis.operateur_nom).all()
+@app.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
+    utilisateur = db.query(models.Utilisateur).filter(models.Utilisateur.email == form_data.username).first()
     
-    resultat = []
-    for operateur, moyenne, total in stats:
-        resultat.append({
-            "operateur": operateur,
-            "moyenne": round(float(moyenne), 2),
-            "total_avis": total
-        })
-    
-    return resultat
-
-# 6. Route pour envoyer un message
-@app.post("/messages", response_model=schemas.MessageResponse)
-def envoyer_message(message: schemas.MessageCreate, db: Session = Depends(get_db)):
-    nouveau_message = models.Message(
-        expediteur_email=message.expediteur_email,
-        destinataire_email=message.destinataire_email,
-        contenu=message.contenu
-    )
-    db.add(nouveau_message)
-    db.commit()
-    db.refresh(nouveau_message)
-    return nouveau_message
-
-# 7. Route pour récupérer les messages entre deux utilisateurs
-@app.get("/messages/{email1}/{email2}")
-def get_messages(email1: str, email2: str, db: Session = Depends(get_db)):
-    from sqlalchemy import or_, and_
-    messages = db.query(models.Message).filter(
-        or_(
-            and_(models.Message.expediteur_email == email1, models.Message.destinataire_email == email2),
-            and_(models.Message.expediteur_email == email2, models.Message.destinataire_email == email1)
+    if not utilisateur or not auth.verifier_mot_de_passe(form_data.password, utilisateur.mot_de_passe):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email ou mot de passe incorrect",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    ).order_by(models.Message.date_envoi.asc()).all()
-    return messages
-# 8. Route pour importer un fichier Excel/CSV
-@app.post("/import-excel")
-async def import_excel(file: UploadFile = File(...)):
-    try:
-        # Lire le contenu du fichier
-        contenu = await file.read()
-        
-        # Si c'est un CSV
-        if file.filename.endswith('.csv'):
-            df = pd.read_csv(io.BytesIO(contenu))
-        # Si c'est un Excel
-        elif file.filename.endswith('.xlsx') or file.filename.endswith('.xls'):
-            df = pd.read_excel(io.BytesIO(contenu))
-        else:
-            return {"erreur": "Format non supporté. Utilisez CSV ou Excel."}
-        
-        # On vérifie que les colonnes nécessaires sont là
-        colonnes_requises = ['csr', 'debit_mbps', 'latence_ms', 'disponibilite_pct']
-        for col in colonnes_requises:
-            if col not in df.columns:
-                return {"erreur": f"Colonne manquante : {col}. Le fichier doit contenir : csr, debit_mbps, latence_ms, disponibilite_pct"}
-        
-        # On fait la prédiction pour chaque ligne
-        resultats = []
-        for index, row in df.iterrows():
-            prediction = predire_qos(
-                csr=float(row['csr']),
-                debit=float(row['debit_mbps']),
-                latence=float(row['latence_ms']),
-                disponibilite=float(row['disponibilite_pct'])
-            )
-            resultats.append({
-                "ligne": index + 1,
-                "csr": row['csr'],
-                "debit": row['debit_mbps'],
-                "latence": row['latence_ms'],
-                "disponibilite": row['disponibilite_pct'],
-                "score_qos": prediction['score_qos'],
-                "interpretation": prediction['interpretation']
-            })
-        
-        return {
-            "message": f"{len(resultats)} lignes analysées avec succès !",
-            "resultats": resultats
-        }
-        
-    except Exception as e:
-        return {"erreur": f"Erreur lors du traitement : {str(e)}"}
+    
+    if not utilisateur.est_actif:
+        raise HTTPException(status_code=403, detail="Compte désactivé par l'administrateur")
+
+    token = auth.creer_token_acces(data={"sub": utilisateur.email, "role": utilisateur.role})
+    return {"access_token": token, "token_type": "bearer"}
+
+@app.get("/moi")
+def lire_mon_profil(utilisateur: models.Utilisateur = Depends(auth.get_utilisateur_actuel)):
+    return {
+        "id": utilisateur.id,
+        "nom": utilisateur.nom,
+        "email": utilisateur.email,
+        "role": utilisateur.role,
+        "operateur": utilisateur.operateur_nom
+    }
