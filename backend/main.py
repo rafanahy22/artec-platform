@@ -129,3 +129,28 @@ def get_statistiques(db: Session = Depends(get_db)):
         })
     
     return resultat
+
+# 6. Route pour envoyer un message
+@app.post("/messages", response_model=schemas.MessageResponse)
+def envoyer_message(message: schemas.MessageCreate, db: Session = Depends(get_db)):
+    nouveau_message = models.Message(
+        expediteur_email=message.expediteur_email,
+        destinataire_email=message.destinataire_email,
+        contenu=message.contenu
+    )
+    db.add(nouveau_message)
+    db.commit()
+    db.refresh(nouveau_message)
+    return nouveau_message
+
+# 7. Route pour récupérer les messages entre deux utilisateurs
+@app.get("/messages/{email1}/{email2}")
+def get_messages(email1: str, email2: str, db: Session = Depends(get_db)):
+    from sqlalchemy import or_, and_
+    messages = db.query(models.Message).filter(
+        or_(
+            and_(models.Message.expediteur_email == email1, models.Message.destinataire_email == email2),
+            and_(models.Message.expediteur_email == email2, models.Message.destinataire_email == email1)
+        )
+    ).order_by(models.Message.date_envoi.asc()).all()
+    return messages

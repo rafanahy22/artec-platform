@@ -30,3 +30,20 @@ class AvisCreate(BaseModel):
     commentaire: str
     service: str
     region: Optional[str] = None
+
+from datetime import datetime
+
+class MessageCreate(BaseModel):
+    expediteur_email: str
+    destinataire_email: str
+    contenu: str
+
+class MessageResponse(BaseModel):
+    id: int
+    expediteur_email: str
+    destinataire_email: str
+    contenu: str
+    date_envoi: datetime
+
+    class Config:
+        from_attributes = True

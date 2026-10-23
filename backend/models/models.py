@@ -25,3 +25,11 @@ class Avis(Base):
     service = Column(String)  # Appels, SMS, Internet...
     region = Column(String, nullable=True)
     date_creation = Column(DateTime, default=datetime.utcnow)
+class Message(Base):
+    __tablename__ = "messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    expediteur_email = Column(String, index=True)
+    destinataire_email = Column(String, index=True)
+    contenu = Column(String)
+    date_envoi = Column(DateTime, default=datetime.utcnow)
