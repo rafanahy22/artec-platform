@@ -94,3 +94,18 @@ def predict_qos(indicateurs: IndicateursQoS):
         disponibilite=indicateurs.disponibilite_pct
     )
     return resultat
+
+# 4. Route pour enregistrer un avis visiteur
+@app.post("/avis")
+def ajouter_avis(avis: schemas.AvisCreate, db: Session = Depends(get_db)):
+    nouvel_avis = models.Avis(
+        operateur_nom=avis.operateur_nom,
+        note=avis.note,
+        commentaire=avis.commentaire,
+        service=avis.service,
+        region=avis.region
+    )
+    db.add(nouvel_avis)
+    db.commit()
+    db.refresh(nouvel_avis)
+    return {"message": "Merci pour votre avis !", "avis_id": nouvel_avis.id}
