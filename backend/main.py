@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from sqlalchemy import func
+from fastapi import UploadFile, File
+import pandas as pd
+import io
 
 # Imports locaux
 from database.db import engine, SessionLocal, Base
@@ -154,3 +157,51 @@ def get_messages(email1: str, email2: str, db: Session = Depends(get_db)):
         )
     ).order_by(models.Message.date_envoi.asc()).all()
     return messages
+# 8. Route pour importer un fichier Excel/CSV
+@app.post("/import-excel")
+async def import_excel(file: UploadFile = File(...)):
+    try:
+        # Lire le contenu du fichier
+        contenu = await file.read()
+        
+        # Si c'est un CSV
+        if file.filename.endswith('.csv'):
+            df = pd.read_csv(io.BytesIO(contenu))
+        # Si c'est un Excel
+        elif file.filename.endswith('.xlsx') or file.filename.endswith('.xls'):
+            df = pd.read_excel(io.BytesIO(contenu))
+        else:
+            return {"erreur": "Format non supporté. Utilisez CSV ou Excel."}
+        
+        # On vérifie que les colonnes nécessaires sont là
+        colonnes_requises = ['csr', 'debit_mbps', 'latence_ms', 'disponibilite_pct']
+        for col in colonnes_requises:
+            if col not in df.columns:
+                return {"erreur": f"Colonne manquante : {col}. Le fichier doit contenir : csr, debit_mbps, latence_ms, disponibilite_pct"}
+        
+        # On fait la prédiction pour chaque ligne
+        resultats = []
+        for index, row in df.iterrows():
+            prediction = predire_qos(
+                csr=float(row['csr']),
+                debit=float(row['debit_mbps']),
+                latence=float(row['latence_ms']),
+                disponibilite=float(row['disponibilite_pct'])
+            )
+            resultats.append({
+                "ligne": index + 1,
+                "csr": row['csr'],
+                "debit": row['debit_mbps'],
+                "latence": row['latence_ms'],
+                "disponibilite": row['disponibilite_pct'],
+                "score_qos": prediction['score_qos'],
+                "interpretation": prediction['interpretation']
+            })
+        
+        return {
+            "message": f"{len(resultats)} lignes analysées avec succès !",
+            "resultats": resultats
+        }
+        
+    except Exception as e:
+        return {"erreur": f"Erreur lors du traitement : {str(e)}"}
