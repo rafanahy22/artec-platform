@@ -122,6 +122,8 @@ function Dashboard({ utilisateur, onLogout }) {
   const [resultat, setResultat] = useState(null);
   const [loadingIA, setLoadingIA] = useState(false);
   const [stats, setStats] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [nouveauMessage, setNouveauMessage] = useState("");
 
   useEffect(() => {
     if (onglet === 'stats') {
@@ -132,12 +134,43 @@ function Dashboard({ utilisateur, onLogout }) {
     }
   }, [onglet]);
 
+  useEffect(() => {
+    if (onglet === 'chat') {
+      fetch(`http://127.0.0.1:8000/messages/${utilisateur.email}/admin@artec.mg`)
+        .then(res => res.json())
+        .then(data => setMessages(data))
+        .catch(err => console.log(err));
+    }
+  }, [onglet, utilisateur.email]);
+
   const handleIA = async (e) => {
     e.preventDefault(); setLoadingIA(true); setResultat(null);
     try {
       const response = await fetch('http://127.0.0.1:8000/predict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
       const data = await response.json(); setResultat(data);
     } catch (err) { alert("Erreur API"); } finally { setLoadingIA(false); }
+  };
+
+  const envoyerMessage = async () => {
+    if (!nouveauMessage.trim()) return;
+    try {
+      const res = await fetch('http://127.0.0.1:8000/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expediteur_email: utilisateur.email,
+          destinataire_email: "admin@artec.mg",
+          contenu: nouveauMessage
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMessages([...messages, data]);
+        setNouveauMessage("");
+      }
+    } catch (err) {
+      alert("Erreur d'envoi");
+    }
   };
 
   const getScoreColor = (score) => score <= 40 ? 'text-red-500' : score <= 60 ? 'text-orange-500' : score <= 80 ? 'text-yellow-500' : 'text-green-500';
@@ -224,14 +257,29 @@ function Dashboard({ utilisateur, onLogout }) {
 
         {onglet === 'chat' && (
           <div className="p-8 flex flex-col h-[500px]">
-            <h2 className="text-xl font-semibold text-white mb-4">💬 Messagerie ARTEC ↔ Opérateur</h2>
-            <div className="flex-1 bg-slate-900 rounded-lg p-4 overflow-y-auto mb-4 border border-slate-700">
-              <div className="bg-slate-700 text-white p-3 rounded-lg w-max max-w-md mb-2">Bonjour, nous avons reçu votre plainte concernant la latence.</div>
-              <div className="bg-blue-600 text-white p-3 rounded-lg w-max max-w-md mb-2 ml-auto">Bonjour, nous sommes en train de vérifier nos antennes.</div>
+            <h2 className="text-xl font-semibold text-white mb-4">💬 Messagerie</h2>
+            <div className="flex-1 bg-slate-900 rounded-lg p-4 overflow-y-auto mb-4 border border-slate-700 flex flex-col gap-2">
+              {messages.map((msg, index) => {
+                const estMoi = msg.expediteur_email === utilisateur.email;
+                return (
+                  <div key={index} className={`p-3 rounded-lg w-max max-w-md ${estMoi ? 'bg-blue-600 text-white ml-auto' : 'bg-slate-700 text-white'}`}>
+                    {msg.contenu}
+                  </div>
+                );
+              })}
+              {messages.length === 0 && <p className="text-slate-500 text-center mt-10">Aucun message. Commencez la conversation !</p>}
             </div>
             <div className="flex gap-2">
-              <input type="text" placeholder="Écrivez un message..." className="flex-1 bg-slate-700 text-white rounded-lg p-3 border border-slate-600 focus:border-blue-500 outline-none" />
-              <button className="bg-blue-600 text-white px-6 rounded-lg font-bold hover:bg-blue-500 transition">Envoyer</button>
+              <input 
+                type="text" 
+                value={nouveauMessage}
+                onChange={(e) => setNouveauMessage(e.target.value)}
+                placeholder="Écrivez un message..." 
+                className="flex-1 bg-slate-700 text-white rounded-lg p-3 border border-slate-600 focus:border-blue-500 outline-none" 
+              />
+              <button onClick={envoyerMessage} className="bg-blue-600 text-white px-6 rounded-lg font-bold hover:bg-blue-500 transition">
+                Envoyer
+              </button>
             </div>
           </div>
         )}
@@ -240,6 +288,7 @@ function Dashboard({ utilisateur, onLogout }) {
   );
 }
 
+// --- COMPOSANT PRINCIPAL ---
 function App() {
   const [utilisateur, setUtilisateur] = useState(null);
   const [modeVisiteur, setModeVisiteur] = useState(false);
