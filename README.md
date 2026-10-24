@@ -1,34 +1,38 @@
 # 🏛️ ARTEC Platform
 
-Plateforme intelligente de régulation des télécommunications à Madagascar.
+**Plateforme intelligente de régulation des télécommunications à Madagascar.**
 
 ## 🎯 Objectif
 
-Centraliser les informations des opérateurs (Orange, Yas, Airtel), surveiller la qualité de service, collecter les avis des visiteurs, analyser les données via l'IA et aider l'ARTEC à détecter les manquements réglementaires.
+Centraliser les informations des opérateurs (Orange, Yas, Airtel), surveiller la qualité de service, collecter les avis des visiteurs, analyser les données grâce à l'intelligence artificielle et aider l'ARTEC à détecter les manquements réglementaires.
 
-## 👥 Acteurs
+## 👥 Les 4 Espaces
 
-| Acteur | Rôle |
+| Acteur | Fonctionnalités |
 |---|---|
-| 👑 Administrateur | Gère les comptes, supervise tout |
-| 🏛️ ARTEC | Import Excel, ML, alertes, plaintes, sondages, chat, scraping |
-| 📱 Opérateurs (Orange, Yas, Airtel) | Voient leurs mesures, répondent aux alertes, chat avec l'ARTEC |
-| 🌐 Visiteur | Infos publiques, plaintes, sondages |
+| 👑 **Administrateur** | Gère les comptes (activer/désactiver), supervise toute la plateforme. |
+| 🏛️ **ARTEC** | Analyse la QoS avec l'IA, importe des fichiers Excel, gère les plaintes, envoie des alertes, discute avec les opérateurs. |
+| 📱 **Opérateurs** (Orange, Yas, Airtel) | Publient leurs offres, consultent leurs alertes, discutent avec l'ARTEC. |
+| 🌐 **Visiteur** | Consulte les offres, les statistiques publiques, dépose une plainte (sans compte). |
 
-## 🛠️ Stack technique (prévue)
+## 🛠️ Stack Technique
 
-- **Backend** : FastAPI (Python)
-- **Frontend** : à définir
-- **Base de données** : à définir
-- **IA** : TensorFlow / Keras (régression → score QoS 0-100)
+- **Backend** : Python, FastAPI, SQLite, SQLAlchemy
+- **Intelligence Artificielle** : TensorFlow, Keras, Scikit-learn
+- **Sécurité** : JWT (JSON Web Tokens), Bcrypt
+- **Frontend** : React, Tailwind CSS
 
-## 📁 Structure
+## 🚀 Comment lancer le projet
 
-artec-platform/
-├── backend/ # API + ML
-├── frontend/ # Interface web
-└── docs/ # Documentation
+### Prérequis
+- Python 3.10+
+- Node.js 18+
 
-## 📌 Statut
-
-🚧 Projet en cours de développement — étape 1 : initialisation.
+### 1. Lancer le Backend (Python)
+Ouvrez un terminal et tapez :
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload
