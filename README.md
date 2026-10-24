@@ -22,6 +22,10 @@ Centraliser les informations des opérateurs (Orange, Yas, Airtel), surveiller l
 - **Sécurité** : JWT (JSON Web Tokens), Bcrypt
 - **Frontend** : React, Tailwind CSS
 
+## 📌 Statut
+
+- **🚧 Projet** en cours de développement — Version 2.0
+
 ## 🚀 Comment lancer le projet
 
 ### Prérequis
@@ -37,6 +41,3 @@ venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload
 
-📌 Statut
-
-🚧 Projet en cours de développement — Version 2.0
