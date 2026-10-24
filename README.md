@@ -37,6 +37,6 @@ venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload
 
-### 📌 Statut
+📌 Statut
 
 🚧 Projet en cours de développement — Version 2.0
