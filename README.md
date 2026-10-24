@@ -29,10 +29,13 @@ Centraliser les informations des opérateurs (Orange, Yas, Airtel), surveiller l
 - Node.js 18+
 
 ### 1. Lancer le Backend (Python)
-Ouvrez un terminal et tapez :
-```bash
-cd backend
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn main:app --reload
+- Ouvrez un terminal et tapez :
+- cd backend
+- python -m venv venv
+- venv\Scripts\activate
+- uvicorn main:app --reload
+
+### 2. Lancer le Frontend (React)
+- Ouvrez 2éme terminal et tapez :
+- cd frontend
+- npm start
