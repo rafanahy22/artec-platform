@@ -23,8 +23,7 @@ Centraliser les informations des opérateurs (Orange, Yas, Airtel), surveiller l
 - **Frontend** : React, Tailwind CSS
 
 ## 📌 Statut
-
-- **🚧 Projet** en cours de développement — Version 2.0
+- **🚧 Projet en cours de développement — Version 2.0**
 
 ## 🚀 Comment lancer le projet
 
